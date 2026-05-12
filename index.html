@@ -1,0 +1,110 @@
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+void main() => runApp(PizzaScienceApp());
+
+class PizzaScienceApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      theme: ThemeData.dark().copyWith(
+        primaryColor: Colors.orangeAccent,
+        scaffoldBackgroundColor: Color(0xFF0A0A0A),
+      ),
+      home: PizzaAnalyzer(),
+    );
+  }
+}
+
+class PizzaAnalyzer extends StatefulWidget {
+  @override
+  _PizzaAnalyzerState createState() => _PizzaAnalyzerState();
+}
+
+class _PizzaAnalyzerState extends State<PizzaAnalyzer> {
+  final List<TextEditingController> _controllers = List.generate(3, (i) => TextEditingController());
+  String _result = "";
+  bool _isLoading = false;
+
+  // INSERISCI QUI LA TUA API KEY DI OPENROUTER
+  final String apiKey = "IL_TUO_OPENROUTER_API_KEY";
+
+  Future<void> analyzeIngredients() async {
+    setState(() { _isLoading = true; _result = ""; });
+    
+    List<String> ingredients = _controllers.map((c) => c.text).where((t) => t.isNotEmpty).toList();
+    
+    final prompt = """
+    Agisci come un esperto mondiale di chimica degli alimenti e campione mondiale di pizza. 
+    Analizza questi ingredienti per una pizza tonda cotta in forno professionale: ${ingredients.join(", ")}.
+    
+    1. Verifica OK/NO (basi scientifiche su molecole aromatiche).
+    2. Suggerisci altri componenti ideali.
+    3. Specifica PESI (grammi) e TIMING (in cottura o a fine cottura).
+    4. Cita database come Foodpairing o FlavorDB.
+    5. Proponi 3 Pizze (A, B, C) con etichette (Vegetariana, Carne, ecc.), NOME EMOZIONALE e descrizione corta d'impatto.
+    """;
+
+    try {
+      final response = await http.post(
+        Uri.parse("https://openrouter.ai/api/v1/chat/completions"),
+        headers: {
+          "Authorization": "Bearer $apiKey",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({
+          "model": "google/gemini-2.0-flash-001",
+          "messages": [{"role": "user", "content": prompt}]
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+      setState(() { _result = data['choices'][0]['message']['content']; });
+    } catch (e) {
+      setState(() { _result = "Errore di connessione. Verifica API Key."; });
+    } finally {
+      setState(() { _isLoading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("**PIZZA SCIENTIFIC ANALYZER**"), centerTitle: true),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Text("L'analisi molecolare perfetta per la tua pizza.", 
+                 style: TextStyle(fontSize: 16, color: Colors.grey)),
+            SizedBox(height: 20),
+            ..._controllers.map((c) => Padding(
+              padding: EdgeInsets.only(bottom: 10),
+              child: TextField(
+                controller: c,
+                decoration: InputDecoration(
+                  filled: true,
+                  hintText: "Inserisci ingrediente...",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            )).toList(),
+            SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 60,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
+                onPressed: _isLoading ? null : analyzeIngredients,
+                child: _isLoading ? CircularProgressIndicator() : Text("**ANALISI PROFONDA**"),
+              ),
+            ),
+            SizedBox(height: 30),
+            Text(_result, style: TextStyle(fontSize: 15, height: 1.5)),
+          ],
+        ),
+      ),
+    );
+  }
+}
